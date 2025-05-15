@@ -39,7 +39,7 @@ class StorageService {
    * @param {String} username Username to store
    * @param {String} password Password or value to store
    * @param {Object} options Additional options (useBiometrics, etc)
-   * @returns {Promise<Boolean>} Success status
+   * @returns {Promise<Object>} Object with success status and error if applicable
    */
   async saveCredential(key, username, password, options = {}) {
     try {
@@ -115,10 +115,10 @@ class StorageService {
         this.saveItemsList(currentItems);
       }
       
-      return true;
+      return { success: true };
     } catch (error) {
       console.error('Error saving credential:', error);
-      return false;
+      return { success: false, error };
     }
   }
 
@@ -191,7 +191,7 @@ class StorageService {
   /**
    * Delete a credential from keychain
    * @param {String} key Identifier for the credential
-   * @returns {Promise<Boolean>} Success status
+   * @returns {Promise<Object>} Object with success status and error if applicable
    */
   async deleteCredential(key) {
     try {
@@ -208,10 +208,10 @@ class StorageService {
       const updatedItems = currentItems.filter(item => item !== key);
       this.saveItemsList(updatedItems);
       
-      return true;
+      return { success: true };
     } catch (error) {
       console.error('Error deleting credential:', error);
-      return false;
+      return { success: false, error };
     }
   }
 
@@ -221,7 +221,7 @@ class StorageService {
    * @param {String} username New username
    * @param {String} password New password/value
    * @param {Object} options Additional options
-   * @returns {Promise<Boolean>} Success status
+   * @returns {Promise<Object>} Object with success status and error if applicable
    */
   async updateCredential(key, username, password, options = {}) {
     try {
@@ -240,7 +240,7 @@ class StorageService {
       return await this.saveCredential(key, username, password, options);
     } catch (error) {
       console.error('Error updating credential:', error);
-      return false;
+      return { success: false, error };
     }
   }
 

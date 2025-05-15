@@ -14,6 +14,8 @@ import {
   ScrollView,
   Keyboard,
   TouchableWithoutFeedback,
+  Clipboard,
+  Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +35,8 @@ const HomeScreen = ({ navigation }) => {
   const [useDevicePasscode, setUseDevicePasscode] = useState(false);
   const [biometryType, setBiometryType] = useState('None');
   const [expandSecurityOptions, setExpandSecurityOptions] = useState(false);
+  const [errorDetails, setErrorDetails] = useState(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   const insets = useSafeAreaInsets();
   const usernameInputRef = useRef(null);
@@ -133,24 +137,48 @@ const HomeScreen = ({ navigation }) => {
             {
               text: 'Update',
               onPress: async () => {
-                const success = await StorageService.updateCredential(
-                  itemKey,
-                  username,
-                  password,
-                  {
-                    useBiometrics,
-                    useDevicePasscode,
+                try {
+                  const result = await StorageService.updateCredential(
+                    itemKey,
+                    username,
+                    password,
+                    {
+                      useBiometrics,
+                      useDevicePasscode,
+                    }
+                  );
+                  
+                  setLoading(false);
+                  
+                  if (result.success) {
+                    Alert.alert('Success', 'Credential updated successfully');
+                    clearForm();
+                    loadItems();
+                  } else {
+                    const errorJson = JSON.stringify(result.error, Object.getOwnPropertyNames(result.error));
+                    setErrorDetails(errorJson);
+                    Alert.alert(
+                      'Error', 
+                      'Failed to update credential: ' + (result.error?.message || 'Unknown error'), 
+                      [
+                        { text: 'OK' },
+                        { text: 'Show Details', onPress: () => setShowErrorModal(true) }
+                      ]
+                    );
                   }
-                );
-                
-                setLoading(false);
-                
-                if (success) {
-                  Alert.alert('Success', 'Credential updated successfully');
-                  clearForm();
-                  loadItems();
-                } else {
-                  Alert.alert('Error', 'Failed to update credential');
+                } catch (error) {
+                  setLoading(false);
+                  console.error('Error updating credential:', error);
+                  const errorJson = JSON.stringify(error, Object.getOwnPropertyNames(error));
+                  setErrorDetails(errorJson);
+                  Alert.alert(
+                    'Error', 
+                    'Failed to update credential: ' + error.message,
+                    [
+                      { text: 'OK' },
+                      { text: 'Show Details', onPress: () => setShowErrorModal(true) }
+                    ]
+                  );
                 }
               },
             },
@@ -161,7 +189,7 @@ const HomeScreen = ({ navigation }) => {
       }
       
       // Save new credential
-      const success = await StorageService.saveCredential(
+      const result = await StorageService.saveCredential(
         itemKey,
         username,
         password,
@@ -173,17 +201,42 @@ const HomeScreen = ({ navigation }) => {
       
       setLoading(false);
       
-      if (success) {
+      if (result.success) {
         Alert.alert('Success', 'Credential saved successfully');
         clearForm();
         loadItems();
       } else {
-        Alert.alert('Error', 'Failed to save credential');
+        const errorJson = JSON.stringify(result.error, Object.getOwnPropertyNames(result.error));
+        setErrorDetails(errorJson);
+        Alert.alert(
+          'Error', 
+          'Failed to save credential: ' + (result.error?.message || 'Unknown error'),
+          [
+            { text: 'OK' },
+            { text: 'Show Details', onPress: () => setShowErrorModal(true) }
+          ]
+        );
       }
     } catch (error) {
       setLoading(false);
       console.error('Error saving credential:', error);
-      Alert.alert('Error', 'Failed to save credential');
+      const errorJson = JSON.stringify(error, Object.getOwnPropertyNames(error));
+      setErrorDetails(errorJson);
+      Alert.alert(
+        'Error', 
+        'Failed to save credential: ' + error.message,
+        [
+          { text: 'OK' },
+          { text: 'Show Details', onPress: () => setShowErrorModal(true) }
+        ]
+      );
+    }
+  };
+
+  const copyErrorToClipboard = () => {
+    if (errorDetails) {
+      Clipboard.setString(errorDetails);
+      Alert.alert('Copied', 'Error details copied to clipboard');
     }
   };
 
@@ -376,6 +429,44 @@ const HomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </ScrollView>
+
+          <Modal
+            visible={showErrorModal}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowErrorModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Error Details</Text>
+                  <TouchableOpacity 
+                    onPress={() => setShowErrorModal(false)}
+                    style={styles.closeIcon}
+                  >
+                    <Icon name="close" size={24} color="#757575" />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.errorScrollView}>
+                  <Text style={styles.errorText}>{errorDetails}</Text>
+                </ScrollView>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.button, styles.copyButton]} 
+                    onPress={copyErrorToClipboard}
+                  >
+                    <Text style={styles.copyButtonText}>Copy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.button, styles.closeButton]} 
+                    onPress={() => setShowErrorModal(false)}
+                  >
+                    <Text style={styles.closeButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -546,6 +637,66 @@ const styles = StyleSheet.create({
     color: '#757575',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 20,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  errorScrollView: {
+    maxHeight: 300,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 4,
+    padding: 10,
+  },
+  errorText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    color: '#D32F2F',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  copyButton: {
+    backgroundColor: '#2196F3',
+    marginRight: 10,
+  },
+  copyButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    backgroundColor: '#757575',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  closeIcon: {
+    padding: 4,
   },
 });
 
