@@ -199,7 +199,25 @@ const CredentialDetailScreen = ({ route, navigation }) => {
           }
         );
 
-        if (!result.success) {
+        if (result.success) {
+          // If security option was successfully changed, show a small confirmation
+          // with security details
+          const securityInfo = result.securityInfo || {};
+          console.log('Security options updated:', securityInfo);
+          
+          // Force alert to show with a small delay
+          setTimeout(() => {
+            Alert.alert(
+              'Security Updated',
+              `New security settings applied:\n\n` +
+              `• Access Control: ${securityInfo.accessControlName || 'None'}\n` +
+              `• Accessible: ${securityInfo.accessibleName || 'Default'}\n` +
+              `• Security Level: ${securityInfo.securityLevelName || 'Default'}\n` +
+              `• Using Biometrics: ${option === 'biometrics' ? value : useBiometrics ? 'Yes' : 'No'}\n` +
+              `• Using Device Passcode: ${option === 'passcode' ? value : useDevicePasscode ? 'Yes' : 'No'}`
+            );
+          }, 100);
+        } else {
           // Reset switch if failed
           if (option === 'biometrics') {
             setUseBiometrics(!value);

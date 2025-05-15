@@ -16,6 +16,7 @@ import {
   TouchableWithoutFeedback,
   Clipboard,
   Modal,
+  Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +38,11 @@ const HomeScreen = ({ navigation }) => {
   const [expandSecurityOptions, setExpandSecurityOptions] = useState(false);
   const [errorDetails, setErrorDetails] = useState(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [successDetails, setSuccessDetails] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+  const [notificationInfo, setNotificationInfo] = useState(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const insets = useSafeAreaInsets();
   const usernameInputRef = useRef(null);
@@ -53,7 +59,6 @@ const HomeScreen = ({ navigation }) => {
     };
 
     const unsubscribe = navigation.addListener('focus', () => {
-      // Reload items when screen comes into focus
       loadItems();
     });
 
@@ -114,6 +119,45 @@ const HomeScreen = ({ navigation }) => {
     return true;
   };
 
+  const fadeIn = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const fadeOut = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowSuccessNotification(false);
+    });
+  };
+
+  const showNotification = (operation, securityInfo) => {
+    setNotificationInfo({
+      operation,
+      securityInfo
+    });
+    
+    console.log('Showing notification with security info:', securityInfo);
+    
+    setShowSuccessNotification(false);
+    
+    setTimeout(() => {
+      setShowSuccessNotification(true);
+      
+      fadeIn();
+      
+      setTimeout(() => {
+        fadeOut();
+      }, 20000);
+    }, 100);
+  };
+
   const handleSave = async () => {
     if (!validateInput()) {
       return;
@@ -151,7 +195,28 @@ const HomeScreen = ({ navigation }) => {
                   setLoading(false);
                   
                   if (result.success) {
+                    const securityInfo = result.securityInfo || {};
+                    console.log('Security info from update:', securityInfo);
+                    
+                    setSuccessDetails({
+                      operation: 'Update',
+                      credential: {
+                        key: itemKey,
+                        username,
+                        securityInfo
+                      }
+                    });
+                    
+                    showNotification('Update', {
+                      accessControl: securityInfo.accessControlName || 'None',
+                      accessible: securityInfo.accessibleName || 'Default',
+                      securityLevel: securityInfo.securityLevelName || 'Default',
+                      biometrics: useBiometrics ? 'Yes' : 'No',
+                      devicePasscode: useDevicePasscode ? 'Yes' : 'No'
+                    });
+                    
                     Alert.alert('Success', 'Credential updated successfully');
+                    
                     clearForm();
                     loadItems();
                   } else {
@@ -202,7 +267,28 @@ const HomeScreen = ({ navigation }) => {
       setLoading(false);
       
       if (result.success) {
+        const securityInfo = result.securityInfo || {};
+        console.log('Security info from save:', securityInfo);
+
+        setSuccessDetails({
+          operation: 'Create',
+          credential: {
+            key: itemKey,
+            username,
+            securityInfo
+          }
+        });
+        
+        showNotification('Create', {
+          accessControl: securityInfo.accessControlName || 'None',
+          accessible: securityInfo.accessibleName || 'Default',
+          securityLevel: securityInfo.securityLevelName || 'Default',
+          biometrics: useBiometrics ? 'Yes' : 'No',
+          devicePasscode: useDevicePasscode ? 'Yes' : 'No'
+        });
+        
         Alert.alert('Success', 'Credential saved successfully');
+        
         clearForm();
         loadItems();
       } else {
@@ -269,6 +355,64 @@ const HomeScreen = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
+      {/* Success notification positioned at the top level for visibility */}
+      {showSuccessNotification && notificationInfo && (
+        <Animated.View style={[styles.notificationContainer, { opacity: fadeAnim }]}>
+          <View style={styles.notificationHeader}>
+            <Text style={styles.notificationTitle}>
+              Credential {notificationInfo.operation}d Successfully
+            </Text>
+            <TouchableOpacity 
+              onPress={fadeOut}
+              style={styles.closeIcon}
+            >
+              <Icon name="close" size={20} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.notificationContent}>
+            <Text style={styles.notificationSubtitle}>Security Details:</Text>
+            <View style={styles.securityDetail}>
+              <Text style={styles.securityLabel}>Access Control:</Text>
+              <Text style={styles.securityValue}>
+                {notificationInfo.securityInfo.accessControl}
+              </Text>
+            </View>
+            <View style={styles.securityDetail}>
+              <Text style={styles.securityLabel}>Accessible:</Text>
+              <Text style={styles.securityValue}>
+                {notificationInfo.securityInfo.accessible}
+              </Text>
+            </View>
+            <View style={styles.securityDetail}>
+              <Text style={styles.securityLabel}>Security Level:</Text>
+              <Text style={styles.securityValue}>
+                {notificationInfo.securityInfo.securityLevel}
+              </Text>
+            </View>
+            <View style={styles.securityDetail}>
+              <Text style={styles.securityLabel}>Using Biometrics:</Text>
+              <Text style={styles.securityValue}>
+                {notificationInfo.securityInfo.biometrics}
+              </Text>
+            </View>
+            <View style={styles.securityDetail}>
+              <Text style={styles.securityLabel}>Using Device Passcode:</Text>
+              <Text style={styles.securityValue}>
+                {notificationInfo.securityInfo.devicePasscode}
+              </Text>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.moreDetailsButton}
+              onPress={() => setShowSuccessModal(true)}
+            >
+              <Text style={styles.moreDetailsText}>See More Details</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
+
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.innerContainer}>
           <View style={styles.header}>
@@ -429,46 +573,142 @@ const HomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </ScrollView>
-
-          <Modal
-            visible={showErrorModal}
-            transparent={true}
-            animationType="slide"
-            onRequestClose={() => setShowErrorModal(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Error Details</Text>
-                  <TouchableOpacity 
-                    onPress={() => setShowErrorModal(false)}
-                    style={styles.closeIcon}
-                  >
-                    <Icon name="close" size={24} color="#757575" />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView style={styles.errorScrollView}>
-                  <Text style={styles.errorText}>{errorDetails}</Text>
-                </ScrollView>
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity 
-                    style={[styles.button, styles.copyButton]} 
-                    onPress={copyErrorToClipboard}
-                  >
-                    <Text style={styles.copyButtonText}>Copy</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.button, styles.closeButton]} 
-                    onPress={() => setShowErrorModal(false)}
-                  >
-                    <Text style={styles.closeButtonText}>Close</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
         </View>
       </TouchableWithoutFeedback>
+
+      {/* Error Modal */}
+      <Modal
+        visible={showErrorModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Error Details</Text>
+              <TouchableOpacity 
+                onPress={() => setShowErrorModal(false)}
+                style={styles.closeIcon}
+              >
+                <Icon name="close" size={24} color="#757575" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.errorScrollView}>
+              <Text style={styles.errorText}>{errorDetails}</Text>
+            </ScrollView>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.copyButton]} 
+                onPress={copyErrorToClipboard}
+              >
+                <Text style={styles.copyButtonText}>Copy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.button, styles.closeButton]} 
+                onPress={() => setShowErrorModal(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Success Details Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Security Details
+              </Text>
+              <TouchableOpacity 
+                onPress={() => setShowSuccessModal(false)}
+                style={styles.closeIcon}
+              >
+                <Icon name="close" size={24} color="#757575" />
+              </TouchableOpacity>
+            </View>
+            {successDetails && (
+              <ScrollView style={styles.successScrollView}>
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailTitle}>Credential Information</Text>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Operation:</Text>
+                    <Text style={styles.detailValue}>{successDetails.operation}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Name:</Text>
+                    <Text style={styles.detailValue}>{successDetails.credential.key}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Username:</Text>
+                    <Text style={styles.detailValue}>{successDetails.credential.username}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailTitle}>Security Configuration</Text>
+                  {successDetails.credential.securityInfo && (
+                    <>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Access Control:</Text>
+                        <Text style={styles.detailValue}>
+                          {successDetails.credential.securityInfo.accessControlName}
+                        </Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Accessible:</Text>
+                        <Text style={styles.detailValue}>
+                          {successDetails.credential.securityInfo.accessibleName}
+                        </Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Security Level:</Text>
+                        <Text style={styles.detailValue}>
+                          {successDetails.credential.securityInfo.securityLevelName}
+                        </Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Authentication Required:</Text>
+                        <Text style={styles.detailValue}>
+                          {successDetails.credential.securityInfo.authenticationRequired ? 'Yes' : 'No'}
+                        </Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Using Biometrics:</Text>
+                        <Text style={styles.detailValue}>
+                          {successDetails.credential.securityInfo.isUsingBiometrics ? 'Yes' : 'No'}
+                        </Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Using Device Passcode:</Text>
+                        <Text style={styles.detailValue}>
+                          {successDetails.credential.securityInfo.isUsingDevicePasscode ? 'Yes' : 'No'}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              </ScrollView>
+            )}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.closeButton]} 
+                onPress={() => setShowSuccessModal(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -697,6 +937,100 @@ const styles = StyleSheet.create({
   },
   closeIcon: {
     padding: 4,
+  },
+  successScrollView: {
+    maxHeight: 400,
+    marginBottom: 15,
+  },
+  detailSection: {
+    marginBottom: 20,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    padding: 15,
+  },
+  detailTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#555',
+    width: '45%',
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+  },
+  notificationContainer: {
+    position: 'absolute',
+    top: 0, 
+    left: 0,
+    right: 0,
+    backgroundColor: '#4CAF50',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    zIndex: 9999,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(255,255,255,0.5)',
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.2)',
+  },
+  notificationTitle: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  notificationContent: {
+    padding: 16,
+    paddingBottom: 20,
+  },
+  notificationSubtitle: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  securityDetail: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  securityLabel: {
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: 'bold',
+    width: '50%',
+  },
+  securityValue: {
+    color: 'white',
+    flex: 1,
+  },
+  moreDetailsButton: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 4,
+  },
+  moreDetailsText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
 });
 
