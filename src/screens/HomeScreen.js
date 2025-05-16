@@ -222,6 +222,8 @@ const HomeScreen = ({ navigation }) => {
                   } else {
                     const errorJson = JSON.stringify(result.error, Object.getOwnPropertyNames(result.error));
                     setErrorDetails(errorJson);
+                    // Reset security options on error
+                    resetSecurityOptions();
                     Alert.alert(
                       'Error', 
                       'Failed to update credential: ' + (result.error?.message || 'Unknown error'), 
@@ -236,6 +238,8 @@ const HomeScreen = ({ navigation }) => {
                   console.error('Error updating credential:', error);
                   const errorJson = JSON.stringify(error, Object.getOwnPropertyNames(error));
                   setErrorDetails(errorJson);
+                  // Reset security options on error
+                  resetSecurityOptions();
                   Alert.alert(
                     'Error', 
                     'Failed to update credential: ' + error.message,
@@ -294,6 +298,8 @@ const HomeScreen = ({ navigation }) => {
       } else {
         const errorJson = JSON.stringify(result.error, Object.getOwnPropertyNames(result.error));
         setErrorDetails(errorJson);
+        // Reset security options on error
+        resetSecurityOptions();
         Alert.alert(
           'Error', 
           'Failed to save credential: ' + (result.error?.message || 'Unknown error'),
@@ -308,6 +314,8 @@ const HomeScreen = ({ navigation }) => {
       console.error('Error saving credential:', error);
       const errorJson = JSON.stringify(error, Object.getOwnPropertyNames(error));
       setErrorDetails(errorJson);
+      // Reset security options on error
+      resetSecurityOptions();
       Alert.alert(
         'Error', 
         'Failed to save credential: ' + error.message,
@@ -333,6 +341,12 @@ const HomeScreen = ({ navigation }) => {
     setUseBiometrics(false);
     setUseDevicePasscode(false);
     setExpandSecurityOptions(false);
+  };
+
+  const resetSecurityOptions = () => {
+    // Reset all security switchers
+    setUseBiometrics(false);
+    setUseDevicePasscode(false);
   };
 
   const toggleSecurityOptions = () => {

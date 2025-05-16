@@ -7,7 +7,7 @@ index 6b6e626..05b1605 100644
          val purposes = KeyProperties.PURPOSE_DECRYPT or KeyProperties.PURPOSE_ENCRYPT
  
 -        val validityDuration = 5
-+        val validityDuration = 50
++        val validityDuration = 15
          val keyGenParameterSpecBuilder =
              KeyGenParameterSpec.Builder(alias, purposes).setBlockModes(BLOCK_MODE_GCM)
                  .setEncryptionPaddings(PADDING_NONE).setRandomizedEncryptionRequired(true)
@@ -20,7 +20,7 @@ index fc8ebf1..a4aafed 100644
          val keySize = ENCRYPTION_KEY_SIZE
  
 -        val validityDuration = 5
-+        val validityDuration = 50
++        val validityDuration = 15
          val keyGenParameterSpecBuilder =
              KeyGenParameterSpec.Builder(alias, purposes)
                  .setBlockModes(BLOCK_MODE_ECB)

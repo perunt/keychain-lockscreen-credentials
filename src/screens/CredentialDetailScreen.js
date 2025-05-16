@@ -173,6 +173,12 @@ const CredentialDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  // const resetSecurityOptions = () => {
+  //   // Reset all security switchers
+  //   setUseBiometrics(false);
+  //   setUseDevicePasscode(false);
+  // };
+
   const toggleSecurityOption = async (option, value) => {
     if (option === 'biometrics') {
       setUseBiometrics(value);
@@ -218,12 +224,8 @@ const CredentialDetailScreen = ({ route, navigation }) => {
             );
           }, 100);
         } else {
-          // Reset switch if failed
-          if (option === 'biometrics') {
-            setUseBiometrics(!value);
-          } else if (option === 'passcode') {
-            setUseDevicePasscode(!value);
-          }
+          // // Reset all security options if failed
+          // resetSecurityOptions();
           
           const errorJson = JSON.stringify(result.error, Object.getOwnPropertyNames(result.error));
           setErrorDetails(errorJson);
@@ -237,12 +239,8 @@ const CredentialDetailScreen = ({ route, navigation }) => {
           );
         }
       } catch (error) {
-        // Reset switch if exception occurs
-        if (option === 'biometrics') {
-          setUseBiometrics(!value);
-        } else if (option === 'passcode') {
-          setUseDevicePasscode(!value);
-        }
+        // // Reset all security options if exception occurs
+        // resetSecurityOptions();
         
         console.error('Error updating security options:', error);
         const errorJson = JSON.stringify(error, Object.getOwnPropertyNames(error));
