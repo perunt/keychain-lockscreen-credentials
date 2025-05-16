@@ -12,6 +12,8 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
+  Clipboard,
+  Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StorageService from '../services/StorageService';
@@ -26,6 +28,8 @@ const CredentialDetailScreen = ({ route, navigation }) => {
   const [useBiometrics, setUseBiometrics] = useState(false);
   const [useDevicePasscode, setUseDevicePasscode] = useState(false);
   const [biometryType, setBiometryType] = useState('None');
+  const [errorDetails, setErrorDetails] = useState(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   useEffect(() => {
     const checkSecurity = async () => {
@@ -162,6 +166,19 @@ const CredentialDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const copyErrorToClipboard = () => {
+    if (errorDetails) {
+      Clipboard.setString(errorDetails);
+      Alert.alert('Copied', 'Error details copied to clipboard');
+    }
+  };
+
+  // const resetSecurityOptions = () => {
+  //   // Reset all security switchers
+  //   setUseBiometrics(false);
+  //   setUseDevicePasscode(false);
+  // };
+
   const toggleSecurityOption = async (option, value) => {
     if (option === 'biometrics') {
       setUseBiometrics(value);
@@ -176,34 +193,79 @@ const CredentialDetailScreen = ({ route, navigation }) => {
     }
 
     if (credential) {
-      // Update credential with new security options
-      const success = await StorageService.updateCredential(
-        itemKey,
-        credential.username,
-        credential.password,
-        {
-          useBiometrics: option === 'biometrics' ? value : useBiometrics,
-          useDevicePasscode: option === 'passcode' ? value : useDevicePasscode,
-        }
-      );
+      try {
+        // Update credential with new security options
+        const result = await StorageService.updateCredential(
+          itemKey,
+          credential.username,
+          credential.password,
+          {
+            useBiometrics: option === 'biometrics' ? value : useBiometrics,
+            useDevicePasscode: option === 'passcode' ? value : useDevicePasscode,
+          }
+        );
 
-      if (!success) {
-        // Reset switch if failed
-        if (option === 'biometrics') {
-          setUseBiometrics(!value);
-        } else if (option === 'passcode') {
-          setUseDevicePasscode(!value);
+        if (result.success) {
+          // If security option was successfully changed, show a small confirmation
+          // with security details
+          const securityInfo = result.securityInfo || {};
+          console.log('Security options updated:', securityInfo);
+          
+          // Force alert to show with a small delay
+          setTimeout(() => {
+            Alert.alert(
+              'Security Updated',
+              `New security settings applied:\n\n` +
+              `• Access Control: ${securityInfo.accessControlName || 'None'}\n` +
+              `• Accessible: ${securityInfo.accessibleName || 'Default'}\n` +
+              `• Security Level: ${securityInfo.securityLevelName || 'Default'}\n` +
+              `• Using Biometrics: ${option === 'biometrics' ? value : useBiometrics ? 'Yes' : 'No'}\n` +
+              `• Using Device Passcode: ${option === 'passcode' ? value : useDevicePasscode ? 'Yes' : 'No'}`
+            );
+          }, 100);
+        } else {
+          // // Reset all security options if failed
+          // resetSecurityOptions();
+          
+          const errorJson = JSON.stringify(result.error, Object.getOwnPropertyNames(result.error));
+          setErrorDetails(errorJson);
+          Alert.alert(
+            'Error', 
+            'Failed to update security options: ' + (result.error?.message || 'Unknown error'),
+            [
+              { text: 'OK' },
+              { text: 'Show Details', onPress: () => setShowErrorModal(true) }
+            ]
+          );
         }
-        Alert.alert('Error', 'Failed to update security options');
+      } catch (error) {
+        // // Reset all security options if exception occurs
+        // resetSecurityOptions();
+        
+        console.error('Error updating security options:', error);
+        const errorJson = JSON.stringify(error, Object.getOwnPropertyNames(error));
+        setErrorDetails(errorJson);
+        Alert.alert(
+          'Error', 
+          'Failed to update security options: ' + error.message,
+          [
+            { text: 'OK' },
+            { text: 'Show Details', onPress: () => setShowErrorModal(true) }
+          ]
+        );
       }
       
       // Update metadata
-      const metadataStr = StorageService.storage.getString(`metadata_${itemKey}`);
-      if (metadataStr) {
-        const metadata = JSON.parse(metadataStr);
-        metadata.useBiometrics = option === 'biometrics' ? value : useBiometrics;
-        metadata.useDevicePasscode = option === 'passcode' ? value : useDevicePasscode;
-        StorageService.storage.set(`metadata_${itemKey}`, JSON.stringify(metadata));
+      try {
+        const metadataStr = StorageService.storage.getString(`metadata_${itemKey}`);
+        if (metadataStr) {
+          const metadata = JSON.parse(metadataStr);
+          metadata.useBiometrics = option === 'biometrics' ? value : useBiometrics;
+          metadata.useDevicePasscode = option === 'passcode' ? value : useDevicePasscode;
+          StorageService.storage.set(`metadata_${itemKey}`, JSON.stringify(metadata));
+        }
+      } catch (metadataError) {
+        console.error('Error updating metadata:', metadataError);
       }
     }
   };
@@ -367,6 +429,44 @@ const CredentialDetailScreen = ({ route, navigation }) => {
           </ScrollView>
         </View>
       </TouchableWithoutFeedback>
+      
+      <Modal
+        visible={showErrorModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Error Details</Text>
+              <TouchableOpacity 
+                onPress={() => setShowErrorModal(false)}
+                style={styles.closeIcon}
+              >
+                <Icon name="close" size={24} color="#757575" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.errorScrollView}>
+              <Text style={styles.errorText}>{errorDetails}</Text>
+            </ScrollView>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.copyButton]} 
+                onPress={copyErrorToClipboard}
+              >
+                <Text style={styles.buttonText}>Copy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.button, styles.closeButton]} 
+                onPress={() => setShowErrorModal(false)}
+              >
+                <Text style={styles.buttonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -509,6 +609,68 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 20,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  errorScrollView: {
+    maxHeight: 300,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 4,
+    padding: 10,
+  },
+  errorText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    color: '#D32F2F',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  button: {
+    padding: 10,
+    borderRadius: 4,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  copyButton: {
+    backgroundColor: '#2196F3',
+    marginRight: 10,
+  },
+  closeButton: {
+    backgroundColor: '#757575',
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  closeIcon: {
+    padding: 4,
   },
 });
 

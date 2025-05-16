@@ -39,7 +39,7 @@ class StorageService {
    * @param {String} username Username to store
    * @param {String} password Password or value to store
    * @param {Object} options Additional options (useBiometrics, etc)
-   * @returns {Promise<Boolean>} Success status
+   * @returns {Promise<Object>} Object with success status and error if applicable
    */
   async saveCredential(key, username, password, options = {}) {
     try {
@@ -115,11 +115,68 @@ class StorageService {
         this.saveItemsList(currentItems);
       }
       
-      return true;
+      const securityInfo = {
+        accessControlName: this._getAccessControlName(accessControl),
+        accessibleName: this._getAccessibleName(keychainOptions.accessible),
+        securityLevelName: this._getSecurityLevelName(securityLevel),
+        authenticationRequired: androidAuthenticationRequired,
+        isUsingBiometrics: useBiometrics,
+        isUsingDevicePasscode: useDevicePasscode
+      };
+      
+      console.log('Saved credential with security info:', securityInfo);
+      
+      return { 
+        success: true,
+        securityInfo 
+      };
     } catch (error) {
       console.error('Error saving credential:', error);
-      return false;
+      return { success: false, error };
     }
+  }
+
+  _getAccessControlName(accessControl) {
+    if (!accessControl) return 'None';
+    
+    const accessControlMap = {
+      [Keychain.ACCESS_CONTROL.BIOMETRY_ANY]: 'Biometric Authentication',
+      [Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET]: 'Current Biometric Set',
+      [Keychain.ACCESS_CONTROL.DEVICE_PASSCODE]: 'Device Passcode',
+      [Keychain.ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE]: 'Biometric or Device Passcode',
+      [Keychain.ACCESS_CONTROL.USER_PRESENCE]: 'User Presence',
+      [Keychain.ACCESS_CONTROL.APPLICATION_PASSWORD]: 'Application Password',
+    };
+    
+    return accessControlMap[accessControl] || 'Unknown';
+  }
+  
+  _getAccessibleName(accessible) {
+    if (!accessible) return 'Default';
+    
+    const accessibleMap = {
+      [Keychain.ACCESSIBLE.WHEN_UNLOCKED]: 'When Device Unlocked',
+      [Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK]: 'After First Unlock',
+      [Keychain.ACCESSIBLE.ALWAYS]: 'Always',
+      [Keychain.ACCESSIBLE.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY]: 'When Passcode Set (This Device Only)',
+      [Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY]: 'When Unlocked (This Device Only)',
+      [Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY]: 'After First Unlock (This Device Only)',
+      [Keychain.ACCESSIBLE.ALWAYS_THIS_DEVICE_ONLY]: 'Always (This Device Only)',
+    };
+    
+    return accessibleMap[accessible] || 'Unknown';
+  }
+  
+  _getSecurityLevelName(securityLevel) {
+    if (!securityLevel) return 'Default';
+    
+    const securityLevelMap = {
+      [Keychain.SECURITY_LEVEL.SECURE_SOFTWARE]: 'Secure Software',
+      [Keychain.SECURITY_LEVEL.SECURE_HARDWARE]: 'Secure Hardware',
+      [Keychain.SECURITY_LEVEL.ANY]: 'Any Available',
+    };
+    
+    return securityLevelMap[securityLevel] || 'Unknown';
   }
 
   /**
@@ -132,7 +189,6 @@ class StorageService {
     try {
       const { useBiometrics = false, promptMessage = 'Authenticate to access credential' } = options;
       
-      // Get metadata to check security settings
       const metadataStr = storage.getString(`metadata_${key}`);
       const metadata = metadataStr ? JSON.parse(metadataStr) : {};
       const requiresAuth = metadata.useBiometrics || metadata.useDevicePasscode;
@@ -191,7 +247,7 @@ class StorageService {
   /**
    * Delete a credential from keychain
    * @param {String} key Identifier for the credential
-   * @returns {Promise<Boolean>} Success status
+   * @returns {Promise<Object>} Object with success status and error if applicable
    */
   async deleteCredential(key) {
     try {
@@ -208,10 +264,10 @@ class StorageService {
       const updatedItems = currentItems.filter(item => item !== key);
       this.saveItemsList(updatedItems);
       
-      return true;
+      return { success: true };
     } catch (error) {
       console.error('Error deleting credential:', error);
-      return false;
+      return { success: false, error };
     }
   }
 
@@ -221,7 +277,7 @@ class StorageService {
    * @param {String} username New username
    * @param {String} password New password/value
    * @param {Object} options Additional options
-   * @returns {Promise<Boolean>} Success status
+   * @returns {Promise<Object>} Object with success status and security info or error
    */
   async updateCredential(key, username, password, options = {}) {
     try {
@@ -240,7 +296,7 @@ class StorageService {
       return await this.saveCredential(key, username, password, options);
     } catch (error) {
       console.error('Error updating credential:', error);
-      return false;
+      return { success: false, error };
     }
   }
 

@@ -8,6 +8,9 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
+  Clipboard,
+  Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { MMKV } from 'react-native-mmkv';
@@ -27,6 +30,8 @@ const SettingsScreen = ({ navigation }) => {
   const [lockscreenEnabled, setLockscreenEnabled] = useState(false);
   const [biometryType, setBiometryType] = useState('None');
   const [authenticating, setAuthenticating] = useState(false);
+  const [errorDetails, setErrorDetails] = useState(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   const insets = useSafeAreaInsets();
 
@@ -125,6 +130,13 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
+  const copyErrorToClipboard = () => {
+    if (errorDetails) {
+      Clipboard.setString(errorDetails);
+      Alert.alert('Copied', 'Error details copied to clipboard');
+    }
+  };
+
   const clearAllData = () => {
     Alert.alert(
       'Clear All Data',
@@ -154,10 +166,21 @@ const SettingsScreen = ({ navigation }) => {
               
               // Get all items
               const items = StorageService.getItemsList();
+              let hasErrors = false;
+              let errorDetails = [];
               
               // Delete each credential
               for (const item of items) {
-                await StorageService.deleteCredential(item);
+                const result = await StorageService.deleteCredential(item);
+                if (!result.success) {
+                  hasErrors = true;
+                  const errorInfo = {
+                    item,
+                    error: result.error
+                  };
+                  errorDetails.push(errorInfo);
+                  console.error(`Error deleting credential ${item}:`, result.error);
+                }
               }
               
               // Reset items list
@@ -165,20 +188,42 @@ const SettingsScreen = ({ navigation }) => {
               
               setLoading(false);
               
-              Alert.alert(
-                'Data Cleared',
-                'All credentials have been deleted from the app.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => navigation.navigate('Home'),
-                  },
-                ]
-              );
+              if (hasErrors) {
+                const errorJson = JSON.stringify(errorDetails, null, 2);
+                setErrorDetails(errorJson);
+                Alert.alert(
+                  'Partial Success',
+                  'Some credentials could not be deleted.',
+                  [
+                    { text: 'OK' },
+                    { text: 'Show Details', onPress: () => setShowErrorModal(true) }
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  'Data Cleared',
+                  'All credentials have been deleted from the app.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => navigation.navigate('Home'),
+                    },
+                  ]
+                );
+              }
             } catch (error) {
               setLoading(false);
               console.error('Error clearing data:', error);
-              Alert.alert('Error', 'Failed to clear app data');
+              const errorJson = JSON.stringify(error, Object.getOwnPropertyNames(error));
+              setErrorDetails(errorJson);
+              Alert.alert(
+                'Error', 
+                'Failed to clear app data: ' + error.message,
+                [
+                  { text: 'OK' },
+                  { text: 'Show Details', onPress: () => setShowErrorModal(true) }
+                ]
+              );
             }
           },
         },
@@ -287,6 +332,44 @@ const SettingsScreen = ({ navigation }) => {
           </Text>
         </View>
       </ScrollView>
+      
+      <Modal
+        visible={showErrorModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowErrorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Error Details</Text>
+              <TouchableOpacity 
+                onPress={() => setShowErrorModal(false)}
+                style={styles.closeIcon}
+              >
+                <Icon name="close" size={24} color="#757575" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.errorScrollView}>
+              <Text style={styles.errorText}>{errorDetails}</Text>
+            </ScrollView>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.copyButton]} 
+                onPress={copyErrorToClipboard}
+              >
+                <Text style={styles.copyButtonText}>Copy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.button, styles.closeButton]} 
+                onPress={() => setShowErrorModal(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -421,6 +504,72 @@ const styles = StyleSheet.create({
     color: '#333',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 20,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  errorScrollView: {
+    maxHeight: 300,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 4,
+    padding: 10,
+  },
+  errorText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    color: '#D32F2F',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  button: {
+    padding: 10,
+    borderRadius: 4,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  copyButton: {
+    backgroundColor: '#2196F3',
+    marginRight: 10,
+  },
+  copyButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    backgroundColor: '#757575',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  closeIcon: {
+    padding: 4,
   },
 });
 
