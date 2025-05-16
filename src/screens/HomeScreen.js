@@ -409,6 +409,13 @@ const HomeScreen = ({ navigation }) => {
             >
               <Text style={styles.moreDetailsText}>See More Details</Text>
             </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.closeNotificationButton}
+              onPress={fadeOut}
+            >
+              <Text style={styles.closeNotificationText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
       )}
@@ -1031,6 +1038,22 @@ const styles = StyleSheet.create({
   moreDetailsText: {
     color: 'white',
     fontWeight: 'bold',
+  },
+  closeNotificationButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginTop: 10,
+    alignSelf: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  closeNotificationText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });
 
